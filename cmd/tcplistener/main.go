@@ -10,9 +10,9 @@ import (
 )
 
 func main() {
-	Listener, err := net.Listen("tcp", ":42069")
+	Listener, err := net.Listen("tcp", ":32020")
 	if err != nil {
-		log.Fatalf("could not listen on port 42069: %s", err)
+		log.Fatalf("could not listen on port 32020: %s", err)
 	}
 	defer Listener.Close()
 	for {
