@@ -1,13 +1,24 @@
 package request
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 )
 
+const bufferSize = 8
+
+type requestState int
+
+const (
+	initialized requestState = iota
+	done
+)
+
 type Request struct {
 	RequestLine RequestLine
+	state       requestState
 }
 
 type RequestLine struct {
@@ -17,22 +28,62 @@ type RequestLine struct {
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	req, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, nil
+	request := &Request{state: initialized}
+	buffer := make([]byte, bufferSize)
+	var readToIndex int
+
+	for {
+		if request.state == done {
+			break
+		}
+
+		if readToIndex == len(buffer) {
+			newBuffer := make([]byte, len(buffer)*2)
+			copy(newBuffer, buffer)
+			buffer = newBuffer
+		}
+
+		r, err := reader.Read(buffer[readToIndex:])
+		if err == io.EOF {
+			request.state = done
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("Error getting request from reader: %s", err)
+		}
+		readToIndex += r
+
+		p, err := request.parse(buffer[:readToIndex])
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing request: %s", err)
+		}
+
+		copy(buffer, buffer[p:readToIndex])
+		readToIndex -= p
 	}
 
-	requestStr := strings.Split(string(req), "\r\n")
-	requestLineStr := requestStr[0]
+	return request, nil
+}
 
-	requestLine, err := parseRequestLine(requestLineStr)
-	if err != nil {
-		return nil, fmt.Errorf("Error Getting request from reader: %s", err)
+func (r *Request) parse(data []byte) (int, error) {
+	if r.state == done {
+		return 0, errors.New("parsing is complete")
+	}
+	if r.state != initialized {
+		return 0, errors.New("unknown state")
 	}
 
-	return &Request{
-		RequestLine: *requestLine,
-	}, nil
+	rl, consumedBytes, err := parseRequestLine(data)
+	if err != nil {
+		return 0, fmt.Errorf("Could not parse request line: %s", err)
+	}
+	if consumedBytes == 0 {
+		return 0, nil
+	}
+
+	r.RequestLine = *rl
+	r.state = done
+	return consumedBytes, nil
 }
 
 var supportedMethods = map[string]struct{}{
@@ -43,27 +94,35 @@ var supportedMethods = map[string]struct{}{
 	"PUT":    {},
 }
 
-func parseRequestLine(rl string) (*RequestLine, error) {
-	requestLineParts := strings.Fields(rl)
+func parseRequestLine(rl []byte) (*RequestLine, int, error) {
+	rlString := string(rl)
+
+	if !strings.Contains(rlString, "\r\n") {
+		return nil, 0, nil
+	}
+
+	index := strings.Index(rlString, "\r\n")
+	consumedBytes := index + 2
+	rlString = rlString[:index]
+
+	requestLineParts := strings.Fields(rlString)
 	if len(requestLineParts) != 3 {
-		return nil, fmt.Errorf("invalid number of parts in request line %s", rl)
+		return nil, consumedBytes, fmt.Errorf("Invalid number of parts in request line: %s", rlString)
 	}
 
 	method := requestLineParts[0]
 	if _, exists := supportedMethods[method]; !exists {
-		return nil, fmt.Errorf("invalid HTTP method %s", method)
+		return nil, consumedBytes, fmt.Errorf("Invalid HTTP method: %s", method)
 	}
-	requestTarget := requestLineParts[1]
 
 	httpVersion := requestLineParts[2]
 	if httpVersion != "HTTP/1.1" {
-		return nil, fmt.Errorf("Unsupported HTTP version :%s", httpVersion)
+		return nil, consumedBytes, fmt.Errorf("Unsupported HTTP version: %s", httpVersion)
 	}
-	versionNo := strings.Split(httpVersion, "/")[1]
 
 	return &RequestLine{
 		Method:        method,
-		RequestTarget: requestTarget,
-		HttpVersion:   versionNo,
-	}, nil
+		RequestTarget: requestLineParts[1],
+		HttpVersion:   "1.1",
+	}, consumedBytes, nil
 }
