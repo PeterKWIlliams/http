@@ -32,7 +32,7 @@ func (cr *chunkReader) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func TestRequestLineParse(t *testing.T) {
+func TestRequestLineParse_ValidGetRequestWtihChunkedReading(t *testing.T) {
 	reader := &chunkReader{
 		data:            "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
 		numBytesPerRead: 1,
@@ -44,52 +44,45 @@ func TestRequestLineParse(t *testing.T) {
 	assert.Equal(t, "GET", r.RequestLine.Method)
 	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
 	assert.Equal(t, "/", r.RequestLine.RequestTarget)
+}
 
-	// Test: Good POST Request line with path
-
+func TestRequestLineParse_ValidPostRequestMaxChunkedReading(t *testing.T) {
 	request := "POST /path HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"
-	readerMaxBytes := &chunkReader{
+	reader := &chunkReader{
 		data:            request,
 		numBytesPerRead: len(request),
 	}
-	r, err = RequestFromReader(readerMaxBytes)
+
+	r, err := RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
 	assert.Equal(t, "POST", r.RequestLine.Method)
 	assert.Equal(t, "/path", r.RequestLine.RequestTarget)
 	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
+}
 
-	// Test: Good GET Request line with path
-	r, err = RequestFromReader(strings.NewReader("GET /coffee HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
+func TestRequestLineParse_ValidGetRequestWithPath(t *testing.T) {
+	r, err := RequestFromReader(strings.NewReader("GET /coffee HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
 	require.NoError(t, err)
 	require.NotNil(t, r)
 	assert.Equal(t, "GET", r.RequestLine.Method)
 	assert.Equal(t, "/coffee", r.RequestLine.RequestTarget)
 	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
+}
 
-	// Test:Bad Request unsupported Method
-	r, err = RequestFromReader(strings.NewReader("PUSH /coffee HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
+func TestRequestLineParse_InvalidMethod(t *testing.T) {
+	r, err := RequestFromReader(strings.NewReader("PUSH /coffee HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
 	require.Error(t, err)
 	require.Nil(t, r)
+}
 
-	// Test: Bad Request request line out of order
-	r, err = RequestFromReader(strings.NewReader("/coffee PUSH  HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
+func TestRequestLineParse_InvalidOrder(t *testing.T) {
+	r, err := RequestFromReader(strings.NewReader("/coffee PUSH HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
 	require.Error(t, err)
 	require.Nil(t, r)
+}
 
-	// Test:Bad Request unsupported Method
-	r, err = RequestFromReader(strings.NewReader("PUSH /coffee HTTP/1.1\r\nHost:localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
+func TestRequestLineParse_InvalidParts(t *testing.T) {
+	_, err := RequestFromReader(strings.NewReader("/coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
 	require.Error(t, err)
-	require.Nil(t, r)
-
-	// Test: Invalid number of parts in request line
-	_, err = RequestFromReader(strings.NewReader("/coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
-	require.Error(t, err)
-
-	r, err = RequestFromReader(strings.NewReader("GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n"))
-	require.NoError(t, err)
-	require.NotNil(t, r)
-	assert.Equal(t, "GET", r.RequestLine.Method)
-	assert.Equal(t, "1.1", r.RequestLine.HttpVersion)
-	assert.Equal(t, "/", r.RequestLine.RequestTarget)
 }
