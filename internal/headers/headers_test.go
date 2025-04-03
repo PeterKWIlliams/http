@@ -11,11 +11,11 @@ import (
 func TestHeaderParse(t *testing.T) {
 	// Test: Valid single header
 	headers := NewHeaders()
-	data := []byte("Host: localhost:32020\r\n\r\n")
+	data := []byte("host: localhost:32020\r\n\r\n")
 	n, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	require.NotNil(t, headers)
-	assert.Equal(t, "localhost:32020", headers["Host"])
+	assert.Equal(t, "localhost:32020", headers["host"])
 	assert.Equal(t, 23, n)
 	assert.False(t, done)
 
@@ -49,13 +49,13 @@ func TestHeaderParse(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
 	assert.False(t, done)
-	assert.Equal(t, "localhost:32020", headers["Host"])
+	assert.Equal(t, "localhost:32020", headers["host"])
 
 	data = data[n:]
 	n2, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	assert.False(t, done)
-	assert.Equal(t, "Go-http-client/1.1", headers["User-Agent"])
+	assert.Equal(t, "Go-http-client/1.1", headers["user-agent"])
 
 	data = data[n2:]
 	n3, done, err := headers.Parse(data)
@@ -69,7 +69,7 @@ func TestHeaderParse(t *testing.T) {
 	n, done, err = headers.Parse(data)
 	fmt.Printf("This is the error: %s", err)
 	require.NoError(t, err)
-	assert.Equal(t, "keep-alive", headers["Connection"])
+	assert.Equal(t, "keep-alive", headers["connection"])
 	assert.Equal(t, 34, n)
 	assert.False(t, done)
 
@@ -78,7 +78,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("X-Custom-Header: \r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
-	assert.Equal(t, "", headers["X-Custom-Header"])
+	assert.Equal(t, "", headers["x-custom-header"])
 	assert.Equal(t, 19, n)
 	assert.False(t, done)
 
@@ -94,6 +94,15 @@ func TestHeaderParse(t *testing.T) {
 	headers = NewHeaders()
 	data = []byte("       \r\n\r\n")
 	n, done, err = headers.Parse(data)
+	require.Error(t, err)
+	assert.Equal(t, 0, n)
+	assert.False(t, done)
+
+	// Test: Header with only whitespace (invalid)
+	headers = NewHeaders()
+	data = []byte("H©st: localhost:42069\r\n\r\n")
+	n, done, err = headers.Parse(data)
+
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
 	assert.False(t, done)

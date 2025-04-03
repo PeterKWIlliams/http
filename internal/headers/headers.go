@@ -5,6 +5,28 @@ import (
 	"strings"
 )
 
+var allowedCharSet map[rune]struct{}
+
+func init() {
+	allowedCharSet = make(map[rune]struct{})
+	for r := 'A'; r <= 'Z'; r++ {
+		allowedCharSet[r] = struct{}{}
+	}
+
+	for r := 'a'; r <= 'z'; r++ {
+		allowedCharSet[r] = struct{}{}
+	}
+
+	for r := '0'; r <= '9'; r++ {
+		allowedCharSet[r] = struct{}{}
+	}
+
+	specialChars := `!#$%&'*+-.^_` + "`|~"
+	for _, r := range specialChars {
+		allowedCharSet[r] = struct{}{}
+	}
+}
+
 type Headers map[string]string
 
 func NewHeaders() Headers {
@@ -33,11 +55,17 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if err = validFieldName(fieldName); err != nil {
 		return 0, false, fmt.Errorf("Invalid field name: %s", err)
 	}
-	h[fieldName] = fieldValue
+
+	h[strings.ToLower(fieldName)] = fieldValue
 	return consumedBytes, false, nil
 }
 
 func validFieldName(fieldName string) error {
+	for _, char := range fieldName {
+		if _, exists := allowedCharSet[char]; !exists {
+			return fmt.Errorf("Header field name '%s' contains invalid character '%s'", fieldName, string(char))
+		}
+	}
 	if fieldName == "" {
 		return fmt.Errorf("Header field name cannot be empty")
 	}
