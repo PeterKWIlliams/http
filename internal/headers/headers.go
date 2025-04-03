@@ -54,8 +54,14 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if err = validFieldName(fieldName); err != nil {
 		return 0, false, fmt.Errorf("Invalid field name: %s", err)
 	}
+	fieldName = strings.ToLower(fieldName)
 
-	h[strings.ToLower(fieldName)] = fieldValue
+	if fv, exists := h[fieldName]; exists {
+		h[fieldName] = fmt.Sprintf("%s, %s", fv, fieldValue)
+	} else {
+		h[fieldName] = fieldValue
+	}
+
 	return consumedBytes, false, nil
 }
 

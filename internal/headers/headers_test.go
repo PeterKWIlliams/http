@@ -104,4 +104,21 @@ func TestHeaderParse(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
 	assert.False(t, done)
+
+	// Test: Multiple valid duplicate headers
+	headers = NewHeaders()
+	data = []byte("Set-person:peter\r\nSet-person:james\r\n\r\n")
+
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, 18, n)
+	assert.Equal(t, "peter", headers["set-person"])
+	assert.False(t, done)
+
+	data = data[n:]
+	n2, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, "peter, james", headers["set-person"])
+	assert.Equal(t, 18, n2)
+	assert.False(t, done)
 }
