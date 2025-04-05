@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/PeterKWIlliams/http/internal/headers"
 )
 
 const bufferSize = 8
@@ -13,11 +15,14 @@ type requestState int
 
 const (
 	initialized requestState = iota
+	parsingHeaders
+	parsingBody
 	done
 )
 
 type Request struct {
 	RequestLine RequestLine
+	Headers     headers.Headers
 	state       requestState
 }
 
@@ -28,7 +33,10 @@ type RequestLine struct {
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	request := &Request{state: initialized}
+	request := &Request{
+		state:   initialized,
+		Headers: headers.NewHeaders(),
+	}
 	buffer := make([]byte, bufferSize)
 	var readToIndex int
 
@@ -36,13 +44,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		if request.state == done {
 			break
 		}
-
 		if readToIndex == len(buffer) {
 			newBuffer := make([]byte, len(buffer)*2)
 			copy(newBuffer, buffer)
 			buffer = newBuffer
 		}
-
 		r, err := reader.Read(buffer[readToIndex:])
 		if err == io.EOF {
 			request.state = done
@@ -66,24 +72,54 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	if r.state == done {
-		return 0, errors.New("parsing is complete")
+	var totalBytesParsed int
+	for r.state != done && r.state != parsingBody {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return 0, fmt.Errorf("Could not parse request component: %s", err)
+		}
+		if n == 0 {
+			break
+		}
+		totalBytesParsed += n
+		if len(data) == totalBytesParsed {
+			break
+		}
 	}
-	if r.state != initialized {
+	return totalBytesParsed, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
+	switch r.state {
+	case initialized:
+		rl, consumedBytes, err := parseRequestLine(data)
+		if err != nil {
+			return 0, fmt.Errorf("Could not parse request line: %s", err)
+		}
+		if consumedBytes == 0 {
+			return 0, nil
+		}
+		r.RequestLine = *rl
+		r.state = parsingHeaders
+		return consumedBytes, nil
+	case parsingHeaders:
+		n, finished, err := r.Headers.Parse(data)
+		if err != nil {
+			return 0, fmt.Errorf("Error parsing header %s", err)
+		}
+		if n == 0 {
+			return 0, nil
+		}
+		if finished {
+			r.state = done
+			return n, nil
+		}
+		return n, nil
+	case done:
+		return 0, errors.New("Parsing done")
+	default:
 		return 0, errors.New("unknown state")
 	}
-
-	rl, consumedBytes, err := parseRequestLine(data)
-	if err != nil {
-		return 0, fmt.Errorf("Could not parse request line: %s", err)
-	}
-	if consumedBytes == 0 {
-		return 0, nil
-	}
-
-	r.RequestLine = *rl
-	r.state = done
-	return consumedBytes, nil
 }
 
 var supportedMethods = map[string]struct{}{
@@ -126,3 +162,24 @@ func parseRequestLine(rl []byte) (*RequestLine, int, error) {
 		HttpVersion:   "1.1",
 	}, consumedBytes, nil
 }
+
+// func (r *Request) parse(data []byte) (int, error) { if r.state == done {
+// 		return 0, errors.New("parsing is complete")
+// 	}
+// 	if r.state != initialized {
+// 		return 0, errors.New("unknown state")
+// 	}
+//
+// 	rl, consumedBytes, err := parseRequestLine(data)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("Could not parse request line: %s", err)
+// 	}
+// 	if consumedBytes == 0 {
+// 		return 0, nil
+// 	}
+// 	r.state = parsingHeaders
+//
+// 	r.state = done
+// 	r.RequestLine = *rl
+// 	return consumedBytes, nil
+// }

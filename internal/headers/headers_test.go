@@ -1,7 +1,6 @@
 package headers
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +20,7 @@ func TestHeaderParse(t *testing.T) {
 
 	// Test: Invalid spacing header (spaces between field name and colon)
 	headers = NewHeaders()
-	data = []byte("       Host : localhost:42069       \r\n\r\n")
+	data = []byte("       Host : localhost:32020       \r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
@@ -67,7 +66,6 @@ func TestHeaderParse(t *testing.T) {
 	headers = NewHeaders()
 	data = []byte("    Connection:   keep-alive    \r\n\r\n")
 	n, done, err = headers.Parse(data)
-	fmt.Printf("This is the error: %s", err)
 	require.NoError(t, err)
 	assert.Equal(t, "keep-alive", headers["connection"])
 	assert.Equal(t, 34, n)
@@ -100,7 +98,7 @@ func TestHeaderParse(t *testing.T) {
 
 	// Test: Header with only whitespace (invalid)
 	headers = NewHeaders()
-	data = []byte("H©st: localhost:42069\r\n\r\n")
+	data = []byte("H©st: localhost:32020\r\n\r\n")
 	n, done, err = headers.Parse(data)
 
 	require.Error(t, err)

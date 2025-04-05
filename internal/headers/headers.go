@@ -29,15 +29,14 @@ func init() {
 
 type Headers map[string]string
 
-func NewHeaders() Headers {
-	return Headers{}
-}
+func NewHeaders() Headers { return Headers{} }
 
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	headerStr := string(data)
 	if !strings.Contains(headerStr, "\r\n") {
 		return 0, false, nil
 	}
+
 	if strings.HasPrefix(headerStr, "\r\n") {
 		return 0, true, nil
 	}
