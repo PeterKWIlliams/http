@@ -39,7 +39,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("\r\n")
 	n, done, err = headers.Parse(data)
 	require.NoError(t, err)
-	assert.Equal(t, 0, n)
+	assert.Equal(t, 2, n)
 	assert.True(t, done)
 
 	// Test: Multiple valid headers
@@ -60,7 +60,7 @@ func TestHeaderParse(t *testing.T) {
 	n3, done, err := headers.Parse(data)
 	require.NoError(t, err)
 	assert.True(t, done)
-	assert.Equal(t, 0, n3)
+	assert.Equal(t, 2, n3)
 
 	// Test: Header with extra leading and trailing whitespace
 	headers = NewHeaders()
