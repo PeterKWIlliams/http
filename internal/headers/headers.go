@@ -1,6 +1,7 @@
 package headers
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -38,7 +39,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 
 	if strings.HasPrefix(headerStr, "\r\n") {
-		return 0, true, nil
+		return 2, true, nil
 	}
 	headerStr = strings.Split(headerStr, "\r\n")[0]
 	consumedBytes := len(headerStr) + 2
@@ -63,6 +64,14 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 
 	return consumedBytes, false, nil
+}
+
+func (h Headers) Get(fieldName string) (string, error) {
+	canonicalFieldName := strings.ToLower(fieldName)
+	if val, exists := h[canonicalFieldName]; exists {
+		return val, nil
+	}
+	return "", errors.New("header field does not exist")
 }
 
 func validFieldName(fieldName string) error {
