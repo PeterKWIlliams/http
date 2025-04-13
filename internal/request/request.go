@@ -127,7 +127,7 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			c, err := r.Headers.Get("Content-Length")
 			if err != nil {
 				r.State = done
-				return 0, nil
+				return n, nil
 			}
 			contentLength, err := strconv.ParseInt(c, 10, 64)
 			if err != nil {

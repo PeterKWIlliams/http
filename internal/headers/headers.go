@@ -74,6 +74,11 @@ func (h Headers) Get(fieldName string) (string, error) {
 	return "", errors.New("header field does not exist")
 }
 
+func (h Headers) Set(fieldName string, fieldValue string) {
+	canonicalFieldName := strings.ToLower(fieldName)
+	h[canonicalFieldName] = fieldValue
+}
+
 func validFieldName(fieldName string) error {
 	for _, char := range fieldName {
 		if _, exists := allowedCharSet[char]; !exists {

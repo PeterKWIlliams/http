@@ -7,17 +7,21 @@ import (
 	"net"
 	"strconv"
 	"sync/atomic"
+
+	"github.com/PeterKWIlliams/http/internal/request"
+	"github.com/PeterKWIlliams/http/internal/response"
 )
 
 type Server struct {
 	Addr     string
 	listener net.Listener
 	isClosed atomic.Bool
+	Handler  Handler
 }
 
-type Handler struct{}
+type Handler func(w *response.Writer, req *request.Request)
 
-func Serve(port int) (*Server, error) {
+func Serve(port int, handler Handler) (*Server, error) {
 	listenAddr := ":" + strconv.Itoa(port)
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -26,6 +30,7 @@ func Serve(port int) (*Server, error) {
 	server := &Server{
 		listener: listener,
 		Addr:     listenAddr,
+		Handler:  handler,
 	}
 
 	go func() {
@@ -62,19 +67,38 @@ func (s *Server) listen() {
 	}
 }
 
+func WriteError(w *response.Writer, statusCode response.StatusCode, message string) error {
+	body := []byte(message)
+	contentLength := len(body)
+	headers := response.GetDefaultHeaders(contentLength)
+
+	err := w.WriteStatusLine(statusCode)
+	if err != nil {
+		return fmt.Errorf("error writing error: %w", err)
+	}
+	err = w.WriteHeaders(headers)
+	if err != nil {
+		return fmt.Errorf("error writing error : %w", err)
+	}
+	_, err = w.WriteBody(body)
+	if err != nil {
+		return fmt.Errorf("error writing error: %w", err)
+	}
+	return nil
+}
+
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Length: 12\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"\r\n" +
-		"Hello World!"
-
-	n, err := conn.Write([]byte(response))
-	if err != nil {
-		log.Printf("Error writing response to %s: %v", conn.RemoteAddr(), err)
+	req, err := request.RequestFromReader(conn)
+	resWriter := &response.Writer{
+		Writer: conn,
 	}
-
-	fmt.Printf("Wrote %d bytes to client\n", n)
+	if err != nil {
+		err = WriteError(resWriter, response.BadRequest, "could not process request")
+		if err != nil {
+			log.Printf("error %s", err)
+		}
+		return
+	}
+	s.Handler(resWriter, req)
 }
