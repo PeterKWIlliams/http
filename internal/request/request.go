@@ -43,10 +43,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buffer := make([]byte, bufferSize)
 	var readToIndex int
 
-	for {
-		if request.State == done {
-			break
-		}
+	for request.State != done {
 		if readToIndex == len(buffer) {
 			newBuffer := make([]byte, len(buffer)*2)
 			copy(newBuffer, buffer)
@@ -55,20 +52,20 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		r, err := reader.Read(buffer[readToIndex:])
 		if err == io.EOF {
 			if request.validBody() {
-				return nil, errors.New("Invalid body size")
+				return nil, errors.New("invalid body size")
 			}
 
 			request.State = done
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("Error getting request from reader: %s", err)
+			return nil, fmt.Errorf("error getting request from reader: %s", err)
 		}
 		readToIndex += r
 
 		p, err := request.parse(buffer[:readToIndex])
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing request: %s", err)
+			return nil, fmt.Errorf("error parsing request: %s", err)
 		}
 
 		copy(buffer, buffer[p:readToIndex])
@@ -87,7 +84,7 @@ func (r *Request) parse(data []byte) (int, error) {
 	for r.State != done {
 		n, err := r.parseSingle(data[totalBytesParsed:])
 		if err != nil {
-			return 0, fmt.Errorf("Could not parse request component: %s", err)
+			return 0, fmt.Errorf("could not parse request component: %s", err)
 		}
 		if n == 0 {
 			break
@@ -106,7 +103,7 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 	case initialized:
 		rl, consumedBytes, err := parseRequestLine(data)
 		if err != nil {
-			return 0, fmt.Errorf("Could not parse request line: %s", err)
+			return 0, fmt.Errorf("could not parse request line: %s", err)
 		}
 		if consumedBytes == 0 {
 			return 0, nil
@@ -117,7 +114,7 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 	case parsingHeaders:
 		n, finished, err := r.Headers.Parse(data)
 		if err != nil {
-			return 0, fmt.Errorf("Error parsing header %s", err)
+			return 0, fmt.Errorf("error parsing header %s", err)
 		}
 		if n == 0 {
 			return 0, nil
@@ -132,7 +129,7 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			contentLength, err := strconv.ParseInt(c, 10, 64)
 			if err != nil {
 				r.State = done
-				return 0, errors.New("Invalid content-length: NaN")
+				return 0, errors.New("invalid content-length: NaN")
 			}
 
 			r.Contentlength = int(contentLength)
@@ -153,7 +150,7 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		}
 		return bytesParsed, nil
 	case done:
-		return 0, errors.New("Parsing done")
+		return 0, errors.New("parsing done")
 	default:
 		return 0, errors.New("unknown state")
 	}
@@ -184,17 +181,17 @@ func parseRequestLine(rl []byte) (*RequestLine, int, error) {
 
 	requestLineParts := strings.Fields(rlString)
 	if len(requestLineParts) != 3 {
-		return nil, consumedBytes, fmt.Errorf("Invalid number of parts in request line: %s", rlString)
+		return nil, consumedBytes, fmt.Errorf("invalid number of parts in request line: %s", rlString)
 	}
 
 	method := requestLineParts[0]
 	if _, exists := supportedMethods[method]; !exists {
-		return nil, consumedBytes, fmt.Errorf("Invalid HTTP method: %s", method)
+		return nil, consumedBytes, fmt.Errorf("invalid HTTP method: %s", method)
 	}
 
 	httpVersion := requestLineParts[2]
 	if httpVersion != "HTTP/1.1" {
-		return nil, consumedBytes, fmt.Errorf("Unsupported HTTP version: %s", httpVersion)
+		return nil, consumedBytes, fmt.Errorf("unsupported HTTP version: %s", httpVersion)
 	}
 
 	return &RequestLine{
