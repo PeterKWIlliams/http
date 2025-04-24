@@ -46,14 +46,14 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	headersParts := strings.SplitN(headerStr, ":", 2)
 
 	if len(headersParts) < 2 {
-		return 0, false, fmt.Errorf("Invalid header: missing ':' separator")
+		return 0, false, fmt.Errorf("invalid header: missing ':' separator")
 	}
 
 	fieldName := strings.TrimLeft(headersParts[0], " ")
 	fieldValue := strings.TrimSpace(headersParts[1])
 
 	if err = validFieldName(fieldName); err != nil {
-		return 0, false, fmt.Errorf("Invalid field name: %s", err)
+		return 0, false, fmt.Errorf("invalid field name: %s", err)
 	}
 	fieldName = strings.ToLower(fieldName)
 
@@ -82,14 +82,14 @@ func (h Headers) Set(fieldName string, fieldValue string) {
 func validFieldName(fieldName string) error {
 	for _, char := range fieldName {
 		if _, exists := allowedCharSet[char]; !exists {
-			return fmt.Errorf("Header field name '%s' contains invalid character '%s'", fieldName, string(char))
+			return fmt.Errorf("header field name '%s' contains invalid character '%s'", fieldName, string(char))
 		}
 	}
 	if fieldName == "" {
-		return fmt.Errorf("Header field name cannot be empty")
+		return fmt.Errorf("header field name cannot be empty")
 	}
 	if strings.Contains(fieldName, " ") {
-		return fmt.Errorf("Whitespace between field name and field value:%s", fieldName)
+		return fmt.Errorf("whitespace between field name and field value:%s", fieldName)
 	}
 	return nil
 }
