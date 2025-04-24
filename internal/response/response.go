@@ -36,11 +36,11 @@ type Writer struct {
 	writerState writerState
 }
 
-var outOfOrderCall = errors.New("out of order call")
+var errOutOfOrderCall = errors.New("out of order call")
 
 func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
 	if w.writerState != writeSL {
-		return outOfOrderCall
+		return errOutOfOrderCall
 	}
 	reasonPhrase, found := statusText[statusCode]
 	if !found {
@@ -67,7 +67,7 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 
 func (w *Writer) WriteHeaders(headers headers.Headers) error {
 	if w.writerState != writeHD {
-		return outOfOrderCall
+		return errOutOfOrderCall
 	}
 	for fieldName, fieldValue := range headers {
 		res := fmt.Sprintf("%s: %s\r\n", fieldName, fieldValue)
@@ -86,7 +86,7 @@ func (w *Writer) WriteHeaders(headers headers.Headers) error {
 
 func (w *Writer) WriteBody(body []byte) (int, error) {
 	if w.writerState != writeBOD {
-		return 0, outOfOrderCall
+		return 0, errOutOfOrderCall
 	}
 	n, err := w.Writer.Write(body)
 	if err != nil {
@@ -110,4 +110,33 @@ func (w *Writer) Write(statusCode StatusCode, headers headers.Headers, body []by
 		return err
 	}
 	return err
+}
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	payloadSize := len(p)
+	if payloadSize == 0 {
+		return 0, nil
+	}
+	sizeLine := []byte(fmt.Sprintf("%x\r\n", payloadSize))
+	chunk := make([]byte, 0, len(sizeLine)+payloadSize+2)
+
+	chunk = append(chunk, sizeLine...)
+	chunk = append(chunk, p...)
+	chunk = append(chunk, []byte("\r\n")...)
+
+	_, err := w.Writer.Write(chunk)
+	if err != nil {
+		return 0, fmt.Errorf("there was an error %w", err)
+	}
+	return payloadSize, nil
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	resp := []byte("0\r\n\r\n")
+	fmt.Println("ONE TIME")
+	r, err := w.Writer.Write(resp)
+	if err != nil {
+		return 0, fmt.Errorf("error writing chunked resp end mark")
+	}
+	return r, nil
 }
